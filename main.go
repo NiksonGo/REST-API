@@ -17,9 +17,10 @@ type Todo struct {
 }
 
 var(
-    todos = []Todo{}
-    nextID = 1
-    mu     sync.Mutex
+    todos          = []Todo{}
+    nextID         = 1
+    availableIDs   = []int{}//список сыободных ID.Хочу дополнить код,чтобы идентификаторы удаленных задач могли быть повторно использованы
+    mu             sync.Mutex
 )
 //маршрутизатор 
 func main() {
@@ -70,9 +71,15 @@ func createTodo(w http.ResponseWriter, r *http.Request) {
     } 
     mu.Lock() //блокирует мьютекс 
     defer mu.Unlock() //откладывает разблокировку мьютекса до завершения функции
-    //установка уникального идентифик. для новой задачи
-    todo.ID = nextID //даем новый идентифик.
-    nextID++ //увелич.значение nextID для следующ.создаваемой задачи
+    //используем доступный или увеличиваем nextID
+    if len(availableIDs) > 0 {
+        todo.ID = availableIDs[0]
+        availableIDs = availableIDs[1:]//удаляем использованый ID из списка
+    } else {
+        todo.ID = nextID // используем новый идентификатор
+        nextID++ // увеличиваем значение nextID для следующей создаваемой задачи
+    }
+
     todos = append(todos, todo)//добавление новой задачи в список задач
     //отправка ответа клиенту
     w.Header().Set("Content-Type", "application/json")//установка заголовка HTTP-ответа Content-Type в значение aplication/json
@@ -138,6 +145,7 @@ func deleteTodoByID(w http.ResponseWriter, r *http.Request) {
     for i, todo := range todos {
         if todo.ID == id {
             todos = append(todos[:i], todos[i + 1:]...)
+            availableIDs = append(availableIDs, id )//добавляем удаленный ID в список свободных ID
             w.WriteHeader(http.StatusNoContent)
             return
         }
